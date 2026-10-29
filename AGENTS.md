@@ -1,0 +1,6 @@
+# Kipit project rules
+Read SOURCE_PLAN.md, IMPLEMENTATION.md, design-system/MASTER.md, and .agents/skills/kipit-design/SKILL.md before changing behavior. Keep .agents and .claude design skill mirrors synchronized when behavior changes.
+
+Preserve offline operation: no INTERNET, camera, gallery, OCR, or analytics dependencies. Store ledger money as exact Long centavos with checked arithmetic; Float/Double are allowed only for visual ratios. Wallet transfers, splits, repayments and savings actions must commit atomically and reject duplicate operations. Never create cash when recording avoided purchases. Never subtract split receivables twice. Keep sample history out of personal ledgers.
+
+Run gradlew.bat assembleDebug assembleDemo testDebugUnitTest lintDebug. Record results honestly; build success does not prove device behavior, performance targets, external notification templates, or production readiness. Do not commit generated build output, local.properties, signing keys or real financial records. This folder is a new project; do not push it to the unrelated MedPulsePH remote.
