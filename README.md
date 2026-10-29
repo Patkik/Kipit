@@ -13,3 +13,6 @@ This initial version does not yet implement swipe-to-commit gestures, notificati
 
 ## Design references
 Uses the parent repository's `.claude/skills/ui-ux-pro-max/SKILL.md`, its Jetpack Compose search guidance, and the MedPulsePH frontend-design skill as references. Design decisions are in `design-system/MASTER.md`.
+
+## Daily entry
+On Today or Wallets, choose **Money in — Income / Credit** for received money, or **Money out — Expense / Debit** for spending. Each button opens its form directly. Choose the wallet, enter the amount and save. Use Other transaction for transfers between your own wallets, split payments, planned purchases and opening balances.

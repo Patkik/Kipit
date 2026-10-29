@@ -49,9 +49,9 @@ import kotlinx.coroutines.flow.receiveAsFlow
                     if(!s.ready)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
                     else tabState.SaveableStateProvider(if(settings)"settings" else "tab$tab") {
                     if(settings)SettingsScreen(s,vm) else when(tab) {
-                        0->PulseDashboardScreen(s,{entry()},{auxiliary="calculation"},{vm.clearError();auxiliary="review"},{vm.clearError();auxiliary="budgets"},{tab=1},{entry("Opening balance")})
+                        0->PulseDashboardScreen(s,{entry()},{entry("Income")},{auxiliary="calculation"},{vm.clearError();auxiliary="review"},{vm.clearError();auxiliary="budgets"},{tab=1},{entry("Opening balance")})
                         1->ActivityScreen(s)
-                        2->VaultScreen(s,vm,{vm.clearError();auxiliary=it},{entry("Opening balance")})
+                        2->VaultScreen(s,vm,{vm.clearError();auxiliary=it},{entry("Opening balance")},{entry("Income")},{entry("Expense")})
                         else->DeepLabAnalyticsScreen(s)
                     }
                     }

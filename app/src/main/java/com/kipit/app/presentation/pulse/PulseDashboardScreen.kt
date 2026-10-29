@@ -15,7 +15,7 @@ import com.kipit.app.presentation.*
 import java.time.*
 import java.time.format.DateTimeFormatter
 
-@Composable fun PulseDashboardScreen(s:UiState,add:()->Unit,explain:()->Unit,review:()->Unit,budgets:()->Unit,activity:()->Unit,opening:()->Unit) {
+@Composable fun PulseDashboardScreen(s:UiState,add:()->Unit,income:()->Unit,explain:()->Unit,review:()->Unit,budgets:()->Unit,activity:()->Unit,opening:()->Unit) {
     val date=LocalDate.now()
     val today=remember(s.transactions,date){s.transactions.filter{it.type==TxType.EXPENSE&&it.date()==date}.sumMoney{Math.addExact(it.amountCentavos,it.feeCentavos)}}
     val monthTotals=remember(s.transactions,date){s.transactions.filter{it.type==TxType.EXPENSE&&YearMonth.from(it.date())==YearMonth.from(date)}.groupBy{it.categoryId}.mapValues{(_,tx)->tx.sumMoney{Math.addExact(it.amountCentavos,it.feeCentavos)}}}
@@ -36,7 +36,7 @@ import java.time.format.DateTimeFormatter
             MoneyRow("Reserved savings","",s.config.lockedSavingsCentavos)
             HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
         }
-        item { ActionButton("Add expense",Icons.Outlined.Add,add,Modifier.fillMaxWidth(),primary=true) }
+        item { MoneyActions(income,add,enabled=!s.busy) }
         if(s.transactions.isEmpty()&&s.wallets.all{it.balanceCentavos==0L})item {
             ActionRow("Set opening balances","Start with the money you already have.",Icons.Outlined.AccountBalanceWallet,opening)
         }

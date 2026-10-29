@@ -17,9 +17,10 @@ import com.kipit.app.data.local.entity.*
 import com.kipit.app.presentation.*
 import java.time.*
 
-@Composable fun VaultScreen(s:UiState,vm:AppViewModel,open:(String)->Unit,opening:()->Unit) {
+@Composable fun VaultScreen(s:UiState,vm:AppViewModel,open:(String)->Unit,opening:()->Unit,income:()->Unit,expense:()->Unit) {
     var wallet by rememberSaveable{mutableStateOf<Long?>(null)}
     AppPage {
+        item{MoneyActions(income,expense,enabled=!s.busy)}
         item{SectionTitle("Balances")}
         items(s.wallets,key={it.id}){w->ActionRow(w.name,w.type.name.lowercase().replace('_',' '),walletIcon(w.type),{wallet=w.id},value=Centavos(w.balanceCentavos).toPhpString())}
         if(s.transactions.isEmpty())item{ActionButton("Set opening balance",Icons.Outlined.Add,opening,Modifier.fillMaxWidth())}

@@ -41,6 +41,27 @@ object Space { val xs=4.dp; val sm=8.dp; val md=12.dp; val lg=16.dp; val section
     if(primary) Button(onClick,modifier.heightIn(min=52.dp),enabled=enabled&&!busy,shape=RoundedCornerShape(14.dp),content=body)
     else OutlinedButton(onClick,modifier.heightIn(min=48.dp),enabled=enabled&&!busy,shape=RoundedCornerShape(12.dp),content=body)
 }
+/** Routine money directions are peers; larger text stacks them without truncating labels. */
+@Composable fun MoneyActions(onIncome:()->Unit,onExpense:()->Unit,enabled:Boolean=true) {
+    if(LocalDensity.current.fontScale>1.3f)Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        MoneyDirectionButton("Money in","Income / Credit",Icons.Outlined.SouthWest,onIncome,Modifier.fillMaxWidth(),enabled)
+        MoneyDirectionButton("Money out","Expense / Debit",Icons.Outlined.NorthEast,onExpense,Modifier.fillMaxWidth(),enabled)
+    } else Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+        MoneyDirectionButton("Money in","Income / Credit",Icons.Outlined.SouthWest,onIncome,Modifier.weight(1f).fillMaxHeight(),enabled)
+        MoneyDirectionButton("Money out","Expense / Debit",Icons.Outlined.NorthEast,onExpense,Modifier.weight(1f).fillMaxHeight(),enabled)
+    }
+}
+@Composable private fun MoneyDirectionButton(title:String,subtitle:String,icon:ImageVector,onClick:()->Unit,modifier:Modifier,enabled:Boolean) {
+    Surface(onClick=onClick,enabled=enabled,modifier=modifier.heightIn(min=88.dp),shape=RoundedCornerShape(14.dp),color=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.onPrimaryContainer,border=BorderStroke(1.dp,MaterialTheme.colorScheme.outline)) {
+        Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            Icon(icon,null,Modifier.size(22.dp))
+            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                Text(title,style=MaterialTheme.typography.titleMedium)
+                Text(subtitle,style=MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
 @Composable fun ActionRow(title:String,subtitle:String?=null,icon:ImageVector,onClick:(()->Unit)?=null,value:String?=null,selected:Boolean?=null,enabled:Boolean=true) {
     val selection=selected
     val large=LocalDensity.current.fontScale>1.3f

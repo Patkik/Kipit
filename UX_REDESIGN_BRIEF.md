@@ -149,3 +149,6 @@ Bolder and overdrive are evaluated against the profile; visually aggressive effe
 The user approved Today, Activity, Wallets, Insights; Settings separately; one focused Add expense flow. The audience, tone and primary goal are confirmed. No further confirmation is required for this redesign.
 
 Skill reference for the brief-confirmation step: C:/Users/patri/.agents/skills/shape/SKILL.md — “Get explicit confirmation of the brief before finishing.”
+
+## User-requested refinement — direct income and expense
+After using the redesign, the user requested peer debit/credit choices beside each other. This supersedes the single Add expense home action: Today and Wallets now show Money in (Income / Credit) beside Money out (Expense / Debit), each opening the correct form directly. Other transaction remains for transfers, splits, planned purchases and opening balances. At enlarged text sizes the controls stack to stay readable. No new profiling or confirmation is required.
