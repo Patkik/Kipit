@@ -16,7 +16,6 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -38,6 +37,12 @@ import com.kipit.app.service.UpdateCheckResult
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){revision++}
     var editor by rememberSaveable{mutableStateOf("")}
     fun open(value:String){vm.clearError();editor=value}
+
+    LaunchedEffect(editor){
+        if(editor=="updates" && updateState is UpdateCheckResult.Idle){
+            vm.checkForUpdates()
+        }
+    }
 
     val updateSubtitle = when (val u = updateState) {
         is UpdateCheckResult.Checking -> "Checking for updates..."
@@ -73,55 +78,55 @@ import com.kipit.app.service.UpdateCheckResult
             },Modifier.fillMaxWidth(),primary=true)
         }
         "updates"->DetailSheet("App updates",{editor=""}){
-            ActionRow("Kipit","Installed: v${com.kipit.app.BuildConfig.VERSION_NAME}",Icons.Outlined.AccountBalanceWallet)
             when(val u = updateState){
-                UpdateCheckResult.Idle->{
-                    Text("Check GitHub releases for the latest updates, fixes, and features.")
-                    ActionButton("Check for updates",Icons.Outlined.Refresh,{vm.checkForUpdates()},Modifier.fillMaxWidth(),primary=true)
-                }
                 UpdateCheckResult.Checking->{
-                    Row(
-                        modifier=Modifier.fillMaxWidth().padding(vertical=12.dp),
-                        verticalAlignment=Alignment.CenterVertically,
-                        horizontalArrangement=Arrangement.spacedBy(12.dp)
-                    ){
-                        CircularProgressIndicator(modifier=Modifier.size(24.dp),strokeWidth=2.dp)
-                        Text("Checking GitHub for updates...")
-                    }
+                    ActionRow("Version tag","v${com.kipit.app.BuildConfig.VERSION_NAME}",Icons.Outlined.Tag)
+                    ActionRow("Date","Checking...",Icons.Outlined.CalendarToday)
+                    Text("Description",style=MaterialTheme.typography.labelLarge)
+                    Text("Connecting to GitHub releases to fetch latest version details...",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    ActionButton("Update",Icons.Outlined.SystemUpdate,{},Modifier.fillMaxWidth(),primary=true,busy=true)
                 }
                 is UpdateCheckResult.Available->{
-                    ActionRow("New release available",u.newVersion,Icons.Outlined.NewReleases)
-                    if(u.title.isNotBlank() && u.title != u.newVersion){
-                        Text(u.title,style=MaterialTheme.typography.titleSmall)
-                    }
-                    if(u.releaseNotes.isNotBlank()){
-                        Surface(
-                            color=MaterialTheme.colorScheme.surfaceVariant,
-                            shape=MaterialTheme.shapes.small,
-                            modifier=Modifier.fillMaxWidth().heightIn(max=200.dp)
-                        ){
-                            LazyColumn(modifier=Modifier.padding(12.dp)){
-                                item{Text(u.releaseNotes,style=MaterialTheme.typography.bodySmall)}
+                    ActionRow("Version tag",u.newVersion,Icons.Outlined.Tag)
+                    ActionRow("Date",u.releaseDate.ifBlank{"Recent release"},Icons.Outlined.CalendarToday)
+                    Text("Description",style=MaterialTheme.typography.labelLarge)
+                    Surface(
+                        color=MaterialTheme.colorScheme.surfaceVariant,
+                        shape=MaterialTheme.shapes.small,
+                        modifier=Modifier.fillMaxWidth().heightIn(max=200.dp)
+                    ){
+                        LazyColumn(modifier=Modifier.padding(12.dp)){
+                            item{
+                                val noteText = if(u.releaseNotes.isNotBlank()) u.releaseNotes else if(u.title.isNotBlank()) u.title else "New update available with performance enhancements and bug fixes."
+                                Text(noteText,style=MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
                     val targetUrl = u.downloadUrl ?: u.releaseUrl
-                    ActionButton(
-                        if(u.downloadUrl!=null)"Download APK" else "View on GitHub",
-                        if(u.downloadUrl!=null)Icons.Outlined.Download else Icons.Outlined.OpenInBrowser,
-                        {context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))},
-                        Modifier.fillMaxWidth(),
-                        primary=true
-                    )
-                    ActionButton("Check again",Icons.Outlined.Refresh,{vm.checkForUpdates()},Modifier.fillMaxWidth(),primary=false)
+                    ActionButton("Update",Icons.Outlined.Download,{
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
+                    },Modifier.fillMaxWidth(),primary=true)
                 }
                 is UpdateCheckResult.UpToDate->{
-                    Text("You're using the latest release of Kipit (v${u.currentVersion}).")
-                    ActionButton("Check again",Icons.Outlined.Refresh,{vm.checkForUpdates()},Modifier.fillMaxWidth(),primary=false)
+                    ActionRow("Version tag","v${u.currentVersion}",Icons.Outlined.Tag)
+                    ActionRow("Date",u.releaseDate.ifBlank{"Installed latest"},Icons.Outlined.CalendarToday)
+                    Text("Description",style=MaterialTheme.typography.labelLarge)
+                    Text("You're on the latest version of Kipit. All behavioral tracking features and patches are up to date.",style=MaterialTheme.typography.bodySmall)
+                    ActionButton("Update",Icons.Outlined.Refresh,{vm.checkForUpdates()},Modifier.fillMaxWidth(),primary=false)
                 }
                 is UpdateCheckResult.Error->{
-                    Text("Unable to check: ${u.message}",color=MaterialTheme.colorScheme.error)
-                    ActionButton("Retry check",Icons.Outlined.Refresh,{vm.checkForUpdates()},Modifier.fillMaxWidth(),primary=true)
+                    ActionRow("Version tag","v${com.kipit.app.BuildConfig.VERSION_NAME}",Icons.Outlined.Tag)
+                    ActionRow("Date","Offline / Unavailable",Icons.Outlined.CalendarToday)
+                    Text("Description",style=MaterialTheme.typography.labelLarge)
+                    Text("Unable to reach GitHub: ${u.message}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.error)
+                    ActionButton("Update",Icons.Outlined.Refresh,{vm.checkForUpdates()},Modifier.fillMaxWidth(),primary=true)
+                }
+                UpdateCheckResult.Idle->{
+                    ActionRow("Version tag","v${com.kipit.app.BuildConfig.VERSION_NAME}",Icons.Outlined.Tag)
+                    ActionRow("Date","Installed",Icons.Outlined.CalendarToday)
+                    Text("Description",style=MaterialTheme.typography.labelLarge)
+                    Text("Check for updates to download the latest releases and fixes.",style=MaterialTheme.typography.bodySmall)
+                    ActionButton("Update",Icons.Outlined.Refresh,{vm.checkForUpdates()},Modifier.fillMaxWidth(),primary=true)
                 }
             }
         }

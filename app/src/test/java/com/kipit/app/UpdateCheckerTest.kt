@@ -21,6 +21,13 @@ class UpdateCheckerTest {
     }
 
     @Test
+    fun formatReleaseDate_formatsIsoDateCorrectly() {
+        assertEquals("Oct 29, 2026", AppUpdateChecker.formatReleaseDate("2026-10-29T10:00:00Z"))
+        assertEquals("Jan 05, 2026", AppUpdateChecker.formatReleaseDate("2026-01-05T08:30:00Z"))
+        assertEquals("Unknown date", AppUpdateChecker.formatReleaseDate(""))
+    }
+
+    @Test
     fun parseReleaseJson_extractsMetadataAndApkAsset() {
         val jsonPayload = """
             {
@@ -48,39 +55,44 @@ class UpdateCheckerTest {
         assertEquals("Kipit v0.2.0 - Performance & Updates", release?.name)
         assertEquals("https://github.com/Patkik/Kipit/releases/tag/v0.2.0", release?.htmlUrl)
         assertEquals("https://github.com/Patkik/Kipit/releases/download/v0.2.0/app-debug.apk", release?.apkDownloadUrl)
+        assertEquals("2026-10-29T10:00:00Z", release?.publishedAt)
         assertTrue(release?.body?.contains("Added in-app update checker") == true)
     }
 
     @Test
-    fun evaluateUpdate_returnsAvailableWhenCandidateIsNewer() {
+    fun evaluateUpdate_returnsAvailableWithFormattedDateWhenCandidateIsNewer() {
         val result = AppUpdateChecker.evaluateCandidate(
             currentVersion = "0.1.0",
             tagName = "v0.2.0",
             title = "Kipit 0.2.0",
             body = "Release notes",
             htmlUrl = "https://github.com/Patkik/Kipit/releases/v0.2.0",
+            publishedAt = "2026-10-29T10:00:00Z",
             apkUrl = "https://example.com/app.apk"
         )
 
         assertTrue(result is UpdateCheckResult.Available)
         val available = result as UpdateCheckResult.Available
         assertEquals("v0.2.0", available.newVersion)
+        assertEquals("Oct 29, 2026", available.releaseDate)
         assertEquals("https://example.com/app.apk", available.downloadUrl)
     }
 
     @Test
-    fun evaluateUpdate_returnsUpToDateWhenCurrentIsLatest() {
+    fun evaluateUpdate_returnsUpToDateWithFormattedDateWhenCurrentIsLatest() {
         val result = AppUpdateChecker.evaluateCandidate(
             currentVersion = "0.2.0",
             tagName = "v0.2.0",
             title = "Kipit 0.2.0",
             body = "Release notes",
             htmlUrl = "https://github.com/Patkik/Kipit/releases/v0.2.0",
+            publishedAt = "2026-10-29T10:00:00Z",
             apkUrl = null
         )
 
         assertTrue(result is UpdateCheckResult.UpToDate)
         val upToDate = result as UpdateCheckResult.UpToDate
         assertEquals("0.2.0", upToDate.currentVersion)
+        assertEquals("Oct 29, 2026", upToDate.releaseDate)
     }
 }

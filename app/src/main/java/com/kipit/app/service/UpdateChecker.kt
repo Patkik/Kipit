@@ -6,12 +6,17 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 sealed interface UpdateCheckResult {
     data object Idle : UpdateCheckResult
     data object Checking : UpdateCheckResult
     data class UpToDate(
         val currentVersion: String,
+        val releaseDate: String = "",
         val checkedAtMs: Long = System.currentTimeMillis()
     ) : UpdateCheckResult
     data class Available(
@@ -19,6 +24,7 @@ sealed interface UpdateCheckResult {
         val newVersion: String,
         val title: String,
         val releaseNotes: String,
+        val releaseDate: String,
         val releaseUrl: String,
         val downloadUrl: String?
     ) : UpdateCheckResult
@@ -35,6 +41,20 @@ data class GitHubReleaseInfo(
 )
 
 object AppUpdateChecker {
+
+    private val dateFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.US)
+
+    fun formatReleaseDate(isoString: String): String {
+        if (isoString.isBlank()) return "Unknown date"
+        return try {
+            val instant = Instant.parse(isoString.trim())
+            instant.atZone(ZoneId.of("UTC")).format(dateFormatter)
+        } catch (_: Exception) {
+            // Fallback for simple date formats or non-standard ISO
+            val datePart = isoString.substringBefore("T").trim()
+            datePart.ifBlank { "Unknown date" }
+        }
+    }
 
     fun isNewerVersion(current: String, candidate: String): Boolean {
         val currParts = parseVersionNumbers(current)
@@ -103,19 +123,25 @@ object AppUpdateChecker {
         title: String,
         body: String,
         htmlUrl: String,
+        publishedAt: String,
         apkUrl: String?
     ): UpdateCheckResult {
+        val formattedDate = formatReleaseDate(publishedAt)
         return if (isNewerVersion(current = currentVersion, candidate = tagName)) {
             UpdateCheckResult.Available(
                 currentVersion = currentVersion,
                 newVersion = tagName,
                 title = title.ifBlank { tagName },
                 releaseNotes = body,
+                releaseDate = formattedDate,
                 releaseUrl = htmlUrl,
                 downloadUrl = apkUrl
             )
         } else {
-            UpdateCheckResult.UpToDate(currentVersion = currentVersion)
+            UpdateCheckResult.UpToDate(
+                currentVersion = currentVersion,
+                releaseDate = formattedDate
+            )
         }
     }
 
@@ -137,7 +163,6 @@ object AppUpdateChecker {
 
             val responseCode = conn.responseCode
             if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
-                // No releases published yet on the repository
                 return@withContext UpdateCheckResult.UpToDate(currentVersion = currentVersion)
             }
             if (responseCode != HttpURLConnection.HTTP_OK) {
@@ -154,6 +179,7 @@ object AppUpdateChecker {
                 title = release.name,
                 body = release.body,
                 htmlUrl = release.htmlUrl,
+                publishedAt = release.publishedAt,
                 apkUrl = release.apkDownloadUrl
             )
         } catch (e: Exception) {
