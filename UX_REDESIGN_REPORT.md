@@ -81,3 +81,12 @@ Main APK SHA-256: 6AD409C5647071FD3830EE3213D98DA661303866A223B64A05E9ABC33D5112
 Demo APK SHA-256: 9222C9DD33AA98CF753C183B999DABBDB8D36C4F0FF84D0EB0EA40F16A89AB41
 
 Both Kipit design skill mirrors are byte-identical. No physical-device, complete TalkBack or performance certification is implied by this result.
+
+## Side-by-side money directions — 29 October 2026
+Today and Wallets now show Money in (Income / Credit) beside Money out (Expense / Debit). Each opens the matching existing form directly, with no Other transaction step. The controls have equal width, direction icons and visible surfaces; at 200% system font they stack and remain readable.
+
+Final command: `gradlew.bat assembleDebug assembleDemo testDebugUnitTest lintDebug --max-workers=1 --no-daemon`. BUILD SUCCESSFUL in 5m 15s, 27 tasks executed / 75 up-to-date. Current XML reports contain 30 passing tests, zero failures/errors; test results were reused. Lint has zero errors, 13 warnings and 1 hint. An earlier lint attempt reported PropertyEscape for a local Java path. That setting was absent from the current gradle.properties when inspected; rerunning the full command against the current configuration passed. No build/signing setting was edited for this UI request.
+
+Runtime checks used only com.kipit.app.demo on the Android emulator. The two controls were visibly side by side on Today and Wallets. Money in opened Add income/To wallet; saving sample income of PHP100 raised Cash from PHP4,980 to PHP5,080 without increasing spending (PHP270). Money out opened Add expense/From wallet; saving PHP10 lowered Cash to PHP5,070 and increased today's spending to PHP280. Available today finished at PHP7,930, reflecting the net PHP90 over three remaining days. Large-font layout was checked and the original 1.0 scale restored. The latest demo APK was reinstalled after the final build; personal ledger data was not opened or modified.
+
+Screenshots and hierarchies: flow-buttons-today, flow-buttons-wallets, flow-income-form, flow-expense-form, flow-after-income, flow-after-expense-wallets, flow-after-both, flow-buttons-large, flow-buttons-latest in the chat visualization folder. Both Kipit design skill mirrors were synchronized. Physical-device and full TalkBack validation remain outside these emulator checks.

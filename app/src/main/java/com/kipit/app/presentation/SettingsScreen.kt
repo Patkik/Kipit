@@ -24,16 +24,21 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kipit.app.core.model.*
 import com.kipit.app.presentation.vault.MoneyEditor
+import com.kipit.app.service.DownloadState
 import com.kipit.app.service.UpdateCheckResult
+import com.kipit.app.service.UpdateInstaller
+import java.util.Locale
 
 @Composable fun SettingsScreen(s:UiState,vm:AppViewModel) {
     val context=LocalContext.current
     val lifecycle=LocalLifecycleOwner.current
     val updateState by vm.updateState.collectAsState()
+    val downloadState by vm.downloadState.collectAsState()
     var revision by remember{mutableIntStateOf(0)}
     DisposableEffect(lifecycle){val observer=LifecycleEventObserver{_,event->if(event==Lifecycle.Event.ON_RESUME)revision++};lifecycle.lifecycle.addObserver(observer);onDispose{lifecycle.lifecycle.removeObserver(observer)}}
     val notifications=remember(revision){context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()}
     val captureEnabled=remember(revision){Settings.Secure.getString(context.contentResolver,"enabled_notification_listeners")?.split(':')?.any{it.substringBefore('/')==context.packageName}==true}
+    val canInstall=remember(revision){UpdateInstaller.canRequestPackageInstalls(context)}
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){revision++}
     var editor by rememberSaveable{mutableStateOf("")}
     fun open(value:String){vm.clearError();editor=value}
@@ -93,7 +98,7 @@ import com.kipit.app.service.UpdateCheckResult
                     Surface(
                         color=MaterialTheme.colorScheme.surfaceVariant,
                         shape=MaterialTheme.shapes.small,
-                        modifier=Modifier.fillMaxWidth().heightIn(max=200.dp)
+                        modifier=Modifier.fillMaxWidth().heightIn(max=160.dp)
                     ){
                         LazyColumn(modifier=Modifier.padding(12.dp)){
                             item{
@@ -102,10 +107,75 @@ import com.kipit.app.service.UpdateCheckResult
                             }
                         }
                     }
-                    val targetUrl = u.downloadUrl ?: u.releaseUrl
-                    ActionButton("Update",Icons.Outlined.Download,{
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
-                    },Modifier.fillMaxWidth(),primary=true)
+
+                    val apkUrl = u.downloadUrl
+                    if(apkUrl.isNullOrBlank()){
+                        ActionButton("View Release Notes",Icons.Outlined.OpenInBrowser,{
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.releaseUrl)))
+                        },Modifier.fillMaxWidth(),primary=true)
+                    } else {
+                        when(val d = downloadState){
+                            DownloadState.Idle->{
+                                ActionButton("Update",Icons.Outlined.Download,{
+                                    vm.startDownload(context, apkUrl, u.newVersion)
+                                },Modifier.fillMaxWidth(),primary=true)
+                            }
+                            is DownloadState.Downloading->{
+                                Column(modifier=Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                                    if(d.percent >= 0){
+                                        LinearProgressIndicator(
+                                            progress = { d.percent / 100f },
+                                            modifier = Modifier.fillMaxWidth().height(8.dp)
+                                        )
+                                        Text(
+                                            "Downloading update... ${d.percent}% (${formatFileSize(d.bytesDownloaded)} / ${formatFileSize(d.totalBytes)})",
+                                            style=MaterialTheme.typography.bodySmall,
+                                            color=MaterialTheme.colorScheme.primary
+                                        )
+                                    } else {
+                                        LinearProgressIndicator(modifier=Modifier.fillMaxWidth().height(8.dp))
+                                        Text(
+                                            "Downloading update... (${formatFileSize(d.bytesDownloaded)})",
+                                            style=MaterialTheme.typography.bodySmall,
+                                            color=MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                                ActionButton("Downloading...",Icons.Outlined.CloudDownload,{},Modifier.fillMaxWidth(),primary=true,busy=true)
+                            }
+                            is DownloadState.Downloaded->{
+                                if(!canInstall){
+                                    Text(
+                                        "Permission needed to install apps from Kipit. Please allow installation in Settings.",
+                                        style=MaterialTheme.typography.bodySmall,
+                                        color=MaterialTheme.colorScheme.error
+                                    )
+                                    ActionButton("Allow app installation",Icons.Outlined.Security,{
+                                        context.startActivity(UpdateInstaller.getManageUnknownAppsIntent(context))
+                                    },Modifier.fillMaxWidth(),primary=true)
+                                } else {
+                                    Text(
+                                        "Update downloaded. Ready to install.",
+                                        style=MaterialTheme.typography.bodySmall,
+                                        color=MaterialTheme.colorScheme.primary
+                                    )
+                                    ActionButton("Install update",Icons.Outlined.SystemUpdate,{
+                                        UpdateInstaller.installApk(context, d.apkFile)
+                                    },Modifier.fillMaxWidth(),primary=true)
+                                }
+                            }
+                            is DownloadState.Error->{
+                                Text(
+                                    "Download failed: ${d.message}",
+                                    style=MaterialTheme.typography.bodySmall,
+                                    color=MaterialTheme.colorScheme.error
+                                )
+                                ActionButton("Retry update",Icons.Outlined.Refresh,{
+                                    vm.startDownload(context, apkUrl, u.newVersion)
+                                },Modifier.fillMaxWidth(),primary=true)
+                            }
+                        }
+                    }
                 }
                 is UpdateCheckResult.UpToDate->{
                     ActionRow("Version tag","v${u.currentVersion}",Icons.Outlined.Tag)
@@ -136,4 +206,11 @@ import com.kipit.app.service.UpdateCheckResult
             if(com.kipit.app.BuildConfig.DEMO_DATA)Text("This is the separate sample app. These records are sample history.")
         }
     }
+}
+
+private fun formatFileSize(bytes: Long): String {
+    if (bytes <= 0) return "0 B"
+    val units = arrayOf("B", "KB", "MB", "GB")
+    val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt().coerceIn(0, units.size - 1)
+    return String.format(Locale.US, "%.1f %s", bytes / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }

@@ -4,8 +4,6 @@
 .kotlin/
 local.properties
 *.keystore
-*.jks
-release.jks
 release.properties
 .DS_Store
 *.iml

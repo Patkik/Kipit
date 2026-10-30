@@ -14,20 +14,21 @@ android {
         applicationId = "com.kipit.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
         buildConfigField("boolean", "DEMO_DATA", "false")
     }
 
     val keystorePath = System.getenv("KEYSTORE_PATH") ?: project.findProperty("KEYSTORE_PATH") as? String
-    val keystorePassword = System.getenv("KEYSTORE_PASSWORD") ?: project.findProperty("KEYSTORE_PASSWORD") as? String
-    val keyAlias = System.getenv("KEY_ALIAS") ?: project.findProperty("KEY_ALIAS") as? String
-    val keyPassword = System.getenv("KEY_PASSWORD") ?: project.findProperty("KEY_PASSWORD") as? String
+    val keystoreFile = if (!keystorePath.isNullOrBlank()) file(keystorePath) else file("release.jks")
+    val keystorePassword = System.getenv("KEYSTORE_PASSWORD") ?: (project.findProperty("KEYSTORE_PASSWORD") as? String) ?: "kipit-release-key"
+    val keyAlias = System.getenv("KEY_ALIAS") ?: (project.findProperty("KEY_ALIAS") as? String) ?: "kipit"
+    val keyPassword = System.getenv("KEY_PASSWORD") ?: (project.findProperty("KEY_PASSWORD") as? String) ?: "kipit-release-key"
 
     signingConfigs {
-        if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
+        if (keystoreFile.exists()) {
             create("release") {
-                storeFile = file(keystorePath)
+                storeFile = keystoreFile
                 storePassword = keystorePassword
                 this.keyAlias = keyAlias
                 this.keyPassword = keyPassword
@@ -45,7 +46,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             val releaseSigning = signingConfigs.findByName("release")
-            if (releaseSigning != null) {
+            if (releaseSigning != null && releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
                 signingConfig = releaseSigning
             } else {
                 signingConfig = signingConfigs.getByName("debug")

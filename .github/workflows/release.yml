@@ -45,13 +45,19 @@ jobs:
           KEY_PASS: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "Decoding release keystore..."
+            echo "Decoding custom release keystore from secrets..."
             echo "$KEYSTORE_BASE64" | base64 -d > app/release.jks
             echo "KEYSTORE_PATH=release.jks" >> $GITHUB_ENV
             echo "KEYSTORE_PASSWORD=$KEYSTORE_PASS" >> $GITHUB_ENV
             echo "KEY_ALIAS=$KEY_AL" >> $GITHUB_ENV
             echo "KEY_PASSWORD=$KEY_PASS" >> $GITHUB_ENV
-            echo "Release keystore configured."
+            echo "Custom release keystore configured."
+          elif [ -f "app/release.jks" ]; then
+            echo "Using repository release.jks keystore."
+            echo "KEYSTORE_PATH=release.jks" >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=kipit-release-key" >> $GITHUB_ENV
+            echo "KEY_ALIAS=kipit" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=kipit-release-key" >> $GITHUB_ENV
           else
             echo "Notice: RELEASE_KEYSTORE_BASE64 not configured. Falling back to debug signing for this release."
           fi

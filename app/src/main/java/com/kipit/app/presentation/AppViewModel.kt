@@ -15,6 +15,8 @@ import com.kipit.app.data.local.dao.*
 import com.kipit.app.data.repository.KipitRepositoryImpl
 import com.kipit.app.domain.usecase.*
 import com.kipit.app.service.AppUpdateChecker
+import com.kipit.app.service.AppUpdateDownloader
+import com.kipit.app.service.DownloadState
 import com.kipit.app.service.UpdateCheckResult
 import java.time.*
 
@@ -52,6 +54,9 @@ class AppViewModel @Inject constructor(
 
     private val _updateState = MutableStateFlow<UpdateCheckResult>(UpdateCheckResult.Idle)
     val updateState = _updateState.asStateFlow()
+
+    private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
+    val downloadState = _downloadState.asStateFlow()
 
     private val dao = repository.dao
 
@@ -103,9 +108,26 @@ class AppViewModel @Inject constructor(
     fun checkForUpdates(currentVersion: String = com.kipit.app.BuildConfig.VERSION_NAME) {
         if (_updateState.value is UpdateCheckResult.Checking) return
         _updateState.value = UpdateCheckResult.Checking
+        _downloadState.value = DownloadState.Idle
         viewModelScope.launch {
             _updateState.value = AppUpdateChecker.checkForUpdates(currentVersion)
         }
+    }
+
+    fun startDownload(context: android.content.Context, downloadUrl: String, version: String) {
+        if (_downloadState.value is DownloadState.Downloading) return
+        viewModelScope.launch {
+            AppUpdateDownloader.download(
+                context = context.applicationContext,
+                downloadUrl = downloadUrl,
+                version = version,
+                onProgress = { _downloadState.value = it }
+            )
+        }
+    }
+
+    fun resetDownload() {
+        _downloadState.value = DownloadState.Idle
     }
 
     fun action(block: suspend () -> Unit) {
