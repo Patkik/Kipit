@@ -160,7 +160,10 @@ import java.util.Locale
                                         color=MaterialTheme.colorScheme.primary
                                     )
                                     ActionButton("Install update",Icons.Outlined.SystemUpdate,{
-                                        UpdateInstaller.installApk(context, d.apkFile)
+                                        val res = UpdateInstaller.installApk(context, d.apkFile)
+                                        if (res.isFailure) {
+                                            android.util.Log.e("SettingsScreen", "Install failed", res.exceptionOrNull())
+                                        }
                                     },Modifier.fillMaxWidth(),primary=true)
                                 }
                             }
