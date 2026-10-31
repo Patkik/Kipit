@@ -9,6 +9,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
@@ -28,7 +29,18 @@ import java.time.*
     val provider=when(capture?.packageName){"com.globe.gcash.android"->"GCash";"com.paymaya"->"Maya";"com.bpi.ng.app"->"BPI";else->""}
     var wallet by rememberSaveable{mutableLongStateOf(if(capture==null)s.wallets.firstOrNull()?.id?:0L else s.wallets.find{provider.isNotEmpty()&&it.name.contains(provider,true)}?.id?:0L)}
     var destination by rememberSaveable{mutableLongStateOf(s.wallets.lastOrNull()?.id?:0L)}
-    var category by rememberSaveable{mutableLongStateOf(s.predicted.firstOrNull()?:s.categories.firstOrNull()?.id?:0L)}
+    val initialCatId = remember(s.predicted, s.categories, initialMode, capture) {
+        if (capture == null && initialMode == "Income") 0L
+        else s.predicted.firstOrNull() ?: s.categories.firstOrNull()?.id ?: 0L
+    }
+    var category by rememberSaveable{mutableLongStateOf(initialCatId)}
+    var categoryText by rememberSaveable{
+        mutableStateOf(
+            if (capture == null && initialMode == "Income") ""
+            else s.categories.find { it.id == initialCatId }?.name ?: ""
+        )
+    }
+    var categorySearch by rememberSaveable{mutableStateOf("")}
     var fee by rememberSaveable{mutableStateOf(false)}
     var debtor by rememberSaveable{mutableStateOf("")}
     var split by rememberSaveable{mutableStateOf("2")}
@@ -36,6 +48,22 @@ import java.time.*
     var noteOpen by rememberSaveable{mutableStateOf(capture!=null)}
     var calculator by rememberSaveable{mutableStateOf(false)}
     var picker by rememberSaveable{mutableStateOf("")}
+
+    LaunchedEffect(mode) {
+        if (mode == "Income") {
+            if (categoryText in listOf("Food", "Transport", "Utilities", "Tech & Gaming", "Groceries", "Subscriptions")) {
+                categoryText = ""
+                category = 0L
+            }
+        } else if (mode in listOf("Expense", "Split", "Park")) {
+            if (categoryText.isBlank() && category == 0L) {
+                val defId = s.predicted.firstOrNull() ?: s.categories.firstOrNull()?.id ?: 0L
+                category = defId
+                categoryText = s.categories.find { it.id == defId }?.name ?: ""
+            }
+        }
+    }
+
     val batchPreview=remember(batch,s.wallets,s.categories){MicroSyntaxLexer.parse(batch,s.wallets,s.categories)}
     val operationKey=rememberSaveable{java.util.UUID.randomUUID().toString()}
     val result=InlineMathEvaluator.evaluate(expression)
@@ -43,19 +71,51 @@ import java.time.*
     val n=split.toLongOrNull()?.takeIf{it in 2..100}
     val personal=if(mode=="Split")amount.value/(n?:2L) else amount.value
     val selectedWallet=s.wallets.find{it.id==wallet}
-    val selectedCategory=s.categories.find{it.id==category}
+    val selectedCategory=s.categories.find{it.id==category} ?: s.categories.find{it.name.trim().equals(categoryText.trim(), ignoreCase = true)}
     val transferFee=if(mode=="Transfer"&&fee)1500L else capture?.feeCentavos?:0L
     val type=when(mode){"Income"->TxType.INCOME;"Opening balance"->TxType.OPENING;"Transfer"->TxType.TRANSFER;else->TxType.EXPENSE}
-    val categorised=mode in listOf("Expense","Split","Park")
+    val categorised=mode in listOf("Expense","Income","Split","Park")
     val preview=runCatching {
         val now=ZonedDateTime.now()
-        if(mode=="Park")s.safe else previewTransaction(s.wallets,s.categories,s.transactions,s.config,TransactionEntity(type=type,amountCentavos=personal,feeCentavos=transferFee,sourceWalletId=wallet,destinationWalletId=if(mode=="Transfer")destination else null,categoryId=if(categorised)category else null,timestampEpochMs=now.toInstant().toEpochMilli(),hourOfDay=now.hour,dayOfWeek=now.dayOfWeek.value,isWeekend=now.dayOfWeek.value>=6),if(mode=="Split")Math.subtractExact(amount.value,personal) else 0L)
+        val previewCatId = if (categorised) {
+            if (category != 0L) category
+            else selectedCategory?.id ?: s.categories.firstOrNull()?.id
+        } else null
+        if(mode=="Park")s.safe else previewTransaction(s.wallets,s.categories,s.transactions,s.config,TransactionEntity(type=type,amountCentavos=personal,feeCentavos=transferFee,sourceWalletId=wallet,destinationWalletId=if(mode=="Transfer")destination else null,categoryId=previewCatId,timestampEpochMs=now.toInstant().toEpochMilli(),hourOfDay=now.hour,dayOfWeek=now.dayOfWeek.value,isWeekend=now.dayOfWeek.value>=6),if(mode=="Split")Math.subtractExact(amount.value,personal) else 0L)
     }
-    val valid=amount.value>0&&result.isSuccess&&preview.isSuccess&&selectedWallet!=null&&(!categorised||selectedCategory!=null)&&(mode!="Split"||(n!=null&&personal>0&&debtor.isNotBlank()))&&(mode!="Transfer"||(destination!=wallet&&s.wallets.any{it.id==destination}))&&(mode!="Park"||note.isNotBlank())
+    val hasCategory = if (mode == "Income") true else (categoryText.isNotBlank() || selectedCategory != null)
+    val valid=amount.value>0&&result.isSuccess&&preview.isSuccess&&selectedWallet!=null&&(!categorised||hasCategory)&&(mode!="Split"||(n!=null&&personal>0&&debtor.isNotBlank()))&&(mode!="Transfer"||(destination!=wallet&&s.wallets.any{it.id==destination}))&&(mode!="Park"||note.isNotBlank())
     fun commit() {
         if(!valid)return
-        if(mode=="Park"){vm.park(note,amount.value,category,dismiss);return}
-        vm.log(personal,type,wallet,if(mode=="Transfer")destination else null,if(categorised)category else null,note,transferFee,if(mode=="Split")Math.subtractExact(amount.value,personal) else 0L,debtor,capture?.id,operationKey,dismiss)
+        val trimmedCat = categoryText.trim()
+        val catNameParam = if (categorised && trimmedCat.isNotBlank()) trimmedCat else null
+        if(mode=="Park"){
+            vm.action {
+                val catId = if (!catNameParam.isNullOrBlank()) {
+                    val existing = s.categories.find { it.name.trim().equals(catNameParam, ignoreCase = true) }
+                    existing?.id ?: vm.repository.dao.insertCategory(CategoryEntity(name = catNameParam, monthlyLimitCentavos = 0L, isDiscretionary = true, isFixedBill = false))
+                } else category
+                vm.repository.dao.insertImpulse(ImpulseVaultEntity(itemName = note, amountCentavos = amount.value, categoryId = catId, createdAtMs = System.currentTimeMillis()))
+                vm.effects.send("Parked for seven days")
+                dismiss()
+            }
+            return
+        }
+        vm.log(
+            amount = personal,
+            type = type,
+            wallet = wallet,
+            destination = if (mode == "Transfer") destination else null,
+            category = if (categorised && category != 0L) category else null,
+            note = note,
+            fee = transferFee,
+            owed = if (mode == "Split") Math.subtractExact(amount.value, personal) else 0L,
+            debtor = debtor,
+            capture = capture?.id,
+            operationKey = operationKey,
+            categoryName = if (categorised) catNameParam else null,
+            onSuccess = dismiss
+        )
     }
     val title=if(capture!=null)"Review payment" else when(mode){"Expense"->"Add expense";"Park"->"Planned purchase";"Opening balance"->"Opening balance";else->"Add ${mode.lowercase()}"}
     val saveLabel=if(capture!=null)"Confirm payment" else when(mode){"Expense"->"Save expense";"Park"->"Park for 7 days";"Transfer"->"Save transfer";"Split"->"Save split";"Income"->"Save income";else->"Save opening balance"}
@@ -63,7 +123,49 @@ import java.time.*
         OutlinedTextField(expression,{expression=it},label={Text("Amount (PHP)")},keyboardOptions=KeyboardOptions(keyboardType=if(calculator)KeyboardType.Text else KeyboardType.Decimal),isError=result.isFailure,textStyle=MaterialTheme.typography.headlineMedium.copy(fontWeight=FontWeight.Medium),singleLine=true,modifier=Modifier.fillMaxWidth())
         ErrorNotice(s.error)
         if(result.isFailure)ErrorNotice("Check the amount or calculation.")
-        if(categorised)ActionRow("Category",selectedCategory?.name?:"Choose category",categoryIcon(selectedCategory?.name?:""),{picker="category"})
+        if(categorised) {
+            OutlinedTextField(
+                value = categoryText,
+                onValueChange = { input ->
+                    categoryText = input
+                    val match = s.categories.find { it.name.trim().equals(input.trim(), ignoreCase = true) }
+                    category = match?.id ?: 0L
+                },
+                label = { Text(if (mode == "Income") "Income category / label" else "Category / label") },
+                placeholder = { Text(if (mode == "Income") "e.g. Video editing income, Housekeeping income" else "e.g. Food, Groceries, Supplies") },
+                leadingIcon = { Icon(categoryIcon(categoryText), null) },
+                trailingIcon = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (categoryText.isNotEmpty()) {
+                            IconButton(onClick = {
+                                categoryText = ""
+                                category = 0L
+                            }) {
+                                Icon(Icons.Outlined.Clear, "Clear")
+                            }
+                        }
+                        IconButton(onClick = {
+                            categorySearch = categoryText
+                            picker = "category"
+                        }) {
+                            Icon(Icons.Outlined.ArrowDropDown, "Browse categories")
+                        }
+                    }
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            val trimmedCat = categoryText.trim()
+            val matchCat = s.categories.find { it.name.trim().equals(trimmedCat, ignoreCase = true) }
+            if (trimmedCat.isNotBlank() && matchCat == null) {
+                Text(
+                    "New label \"$trimmedCat\" will be created and saved",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+        }
         if(mode!="Park")ActionRow(if(mode=="Income"||mode=="Opening balance")"To wallet" else "From wallet",selectedWallet?.let{"${it.name} · ${Centavos(it.balanceCentavos).toPhpString()}"}?:"Choose wallet",Icons.Outlined.AccountBalanceWallet,{picker="wallet"})
         if(mode=="Transfer") {
             ActionRow("To wallet",s.wallets.find{it.id==destination&&it.id!=wallet}?.name?:"Choose destination",Icons.Outlined.SwapHoriz,{picker="destination"})
@@ -90,9 +192,54 @@ import java.time.*
         if(capture==null)ActionRow("Other transaction",null,Icons.Outlined.SwapHoriz,{picker="mode"})
         ActionRow("More options",null,Icons.Outlined.MoreHoriz,{picker="tools"})
     }
-    if(picker.isNotEmpty())DetailSheet(when(picker){"category"->"Choose category";"wallet","destination"->"Choose wallet";"mode"->"Other transaction";"batch"->"Multiple expenses";"repeats"->"Repeat expense";else->"More options"},{if(!s.busy)picker=""},footer=if(picker=="batch")({ActionButton("Record batch",Icons.Outlined.Check,{vm.batch(batch,dismiss)},Modifier.fillMaxWidth(),primary=true,enabled=batchPreview.isSuccess&&batchPreview.getOrNull()?.all{it.personal.value>0}==true,busy=s.busy)}) else null) {
+    if(picker.isNotEmpty())DetailSheet(when(picker){"category"->"Choose category / label";"wallet","destination"->"Choose wallet";"mode"->"Other transaction";"batch"->"Multiple expenses";"repeats"->"Repeat expense";else->"More options"},{if(!s.busy)picker=""},footer=if(picker=="batch")({ActionButton("Record batch",Icons.Outlined.Check,{vm.batch(batch,dismiss)},Modifier.fillMaxWidth(),primary=true,enabled=batchPreview.isSuccess&&batchPreview.getOrNull()?.all{it.personal.value>0}==true,busy=s.busy)}) else null) {
         when(picker) {
-            "category"->s.categories.sortedBy{c->s.predicted.indexOf(c.id).let{if(it<0)100 else it}}.forEach{c->ActionRow(c.name,null,categoryIcon(c.name),{category=c.id;picker=""},selected=category==c.id)}
+            "category"->{
+                OutlinedTextField(
+                    value = categorySearch,
+                    onValueChange = { categorySearch = it },
+                    label = { Text("Search or create category / label") },
+                    placeholder = { Text(if (mode == "Income") "e.g. Video editing income, Housekeeping income" else "e.g. Food, Groceries, Supplies") },
+                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                    trailingIcon = if (categorySearch.isNotEmpty()) {
+                        { IconButton({ categorySearch = "" }) { Icon(Icons.Outlined.Clear, "Clear search") } }
+                    } else null,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                val trimmedSearch = categorySearch.trim()
+                val exactMatch = s.categories.any { it.name.trim().equals(trimmedSearch, ignoreCase = true) }
+                if (trimmedSearch.isNotBlank() && !exactMatch) {
+                    ActionRow(
+                        title = "Create \"$trimmedSearch\"",
+                        subtitle = "New category / label",
+                        icon = Icons.Outlined.Add,
+                        onClick = {
+                            categoryText = trimmedSearch
+                            category = 0L
+                            picker = ""
+                        }
+                    )
+                }
+                val filtered = if (trimmedSearch.isBlank()) {
+                    s.categories.sortedBy { c -> s.predicted.indexOf(c.id).let { if (it < 0) 100 else it } }
+                } else {
+                    s.categories.filter { it.name.contains(trimmedSearch, ignoreCase = true) }
+                }
+                filtered.forEach { c ->
+                    ActionRow(
+                        title = c.name,
+                        subtitle = null,
+                        icon = categoryIcon(c.name),
+                        onClick = {
+                            categoryText = c.name
+                            category = c.id
+                            picker = ""
+                        },
+                        selected = (category == c.id) || (category == 0L && categoryText.trim().equals(c.name.trim(), ignoreCase = true))
+                    )
+                }
+            }
             "wallet","destination"->s.wallets.filter{it.type!=WalletType.CREDIT&&(picker!="destination"||it.id!=wallet)}.forEach{w->ActionRow(w.name,Centavos(w.balanceCentavos).toPhpString(),walletIcon(w.type),{if(picker=="destination")destination=w.id else {wallet=w.id;if(destination==wallet)destination=s.wallets.firstOrNull{it.id!=wallet}?.id?:0L};picker=""},selected=if(picker=="destination")destination==w.id else wallet==w.id)}
             "mode"->listOf("Expense","Income","Transfer","Split","Park","Opening balance").forEach{m->ActionRow(if(m=="Park")"Planned purchase" else m,null,when(m){"Income"->Icons.Outlined.SouthWest;"Transfer"->Icons.Outlined.SwapHoriz;"Split"->Icons.Outlined.Group;"Park"->Icons.Outlined.Schedule;"Opening balance"->Icons.Outlined.AccountBalanceWallet;else->Icons.AutoMirrored.Outlined.ReceiptLong},{mode=m;vm.clearError();picker=""},selected=mode==m)}
             "tools"->{

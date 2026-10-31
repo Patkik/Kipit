@@ -20,8 +20,8 @@ import kotlinx.coroutines.flow.first
  require(tx.type==TxType.EXPENSE || owed==0L){"Only expenses can have a receivable"}
  require(tx.type !in listOf(TxType.INCOME,TxType.OPENING) || tx.feeCentavos==0L){"Income cannot include an expense fee"}
  require(tx.type==TxType.TRANSFER || tx.destinationWalletId==null){"Only transfers can have a destination"}
- if(tx.type==TxType.EXPENSE) require(dao.categories().first().any{it.id==tx.categoryId}){"Choose a valid category"}
- else require(tx.categoryId==null){"Only expenses can have a category"}
+ if(tx.type==TxType.EXPENSE) require(tx.categoryId!=null && dao.categories().first().any{it.id==tx.categoryId}){"Choose a valid category"}
+ else if(tx.type==TxType.INCOME) { if(tx.categoryId!=null) require(dao.categories().first().any{it.id==tx.categoryId}){"Choose a valid category"} } else require(tx.categoryId==null){"Only expenses and income can have a category"}
  if(tx.type==TxType.OPENING)require(dao.transactions().first().none{it.sourceWalletId==source.id || it.destinationWalletId==source.id} && source.balanceCentavos==0L){"Opening balance requires an unused wallet"}
  val total=Math.addExact(Math.addExact(tx.amountCentavos,tx.feeCentavos),owed)
  if(tx.type !in listOf(TxType.INCOME,TxType.OPENING))require(source.type==WalletType.CREDIT || source.balanceCentavos>=total){"This wallet has insufficient funds"}

@@ -157,6 +157,23 @@ class AppViewModel @Inject constructor(
         }
     }
 
+    fun createCategory(name: String, onSuccess: (CategoryEntity) -> Unit = {}) = action {
+        val trimmed = name.trim()
+        require(trimmed.isNotBlank()) { "Category name cannot be empty" }
+        val result = repository.db.withTransaction {
+            val existing = dao.categories().first().find { it.name.trim().equals(trimmed, ignoreCase = true) }
+            if (existing != null) {
+                existing
+            } else {
+                val cat = CategoryEntity(name = trimmed, monthlyLimitCentavos = 0L, isDiscretionary = true, isFixedBill = false)
+                val id = dao.insertCategory(cat)
+                cat.copy(id = id)
+            }
+        }
+        effects.send("Category saved")
+        onSuccess(result)
+    }
+
     fun log(
         amount: Long,
         type: TxType,
@@ -169,24 +186,32 @@ class AppViewModel @Inject constructor(
         debtor: String = "",
         capture: Long? = null,
         operationKey: String = java.util.UUID.randomUUID().toString(),
+        categoryName: String? = null,
         onSuccess: () -> Unit = {}
     ) = action {
         val now = ZonedDateTime.now()
-        val tx = TransactionEntity(
-            type = type,
-            amountCentavos = amount,
-            feeCentavos = fee,
-            sourceWalletId = wallet,
-            destinationWalletId = destination,
-            categoryId = category,
-            timestampEpochMs = now.toInstant().toEpochMilli(),
-            hourOfDay = now.hour,
-            dayOfWeek = now.dayOfWeek.value,
-            isWeekend = now.dayOfWeek.value >= 6,
-            note = note,
-            operationKey = if (capture != null) "capture:$capture" else operationKey
-        )
         repository.db.withTransaction {
+            val resolvedCategory: Long? = if (!categoryName.isNullOrBlank()) {
+                val trimmed = categoryName.trim()
+                val existing = dao.categories().first().find { it.name.trim().equals(trimmed, ignoreCase = true) }
+                existing?.id ?: dao.insertCategory(CategoryEntity(name = trimmed, monthlyLimitCentavos = 0L, isDiscretionary = true, isFixedBill = false))
+            } else {
+                category
+            }
+            val tx = TransactionEntity(
+                type = type,
+                amountCentavos = amount,
+                feeCentavos = fee,
+                sourceWalletId = wallet,
+                destinationWalletId = destination,
+                categoryId = resolvedCategory,
+                timestampEpochMs = now.toInstant().toEpochMilli(),
+                hourOfDay = now.hour,
+                dayOfWeek = now.dayOfWeek.value,
+                isWeekend = now.dayOfWeek.value >= 6,
+                note = note,
+                operationKey = if (capture != null) "capture:$capture" else operationKey
+            )
             repository.commit(tx, owed, debtor)
             if (capture != null) dao.deleteCapture(capture)
         }

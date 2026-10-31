@@ -112,7 +112,15 @@ object Space { val xs=4.dp; val sm=8.dp; val md=12.dp; val lg=16.dp; val section
 }
 fun TransactionEntity.date():LocalDate=Instant.ofEpochMilli(timestampEpochMs).atZone(ZoneId.systemDefault()).toLocalDate()
 fun TxType.label()=when(this){TxType.EXPENSE->"Expense";TxType.INCOME->"Income";TxType.TRANSFER->"Transfer";TxType.OPENING->"Opening balance"}
-fun categoryIcon(name:String):ImageVector=when { name.contains("Food",true)||name.contains("Grocer",true)->Icons.Outlined.Restaurant;name.contains("Transport",true)->Icons.Outlined.DirectionsBus;name.contains("Util",true)->Icons.Outlined.Bolt;name.contains("Tech",true)->Icons.Outlined.Devices;else->Icons.Outlined.Category }
+fun categoryIcon(name:String):ImageVector=when {
+    name.contains("Food",true)||name.contains("Grocer",true)->Icons.Outlined.Restaurant
+    name.contains("Transport",true)->Icons.Outlined.DirectionsBus
+    name.contains("Util",true)->Icons.Outlined.Bolt
+    name.contains("Tech",true)->Icons.Outlined.Devices
+    name.contains("Income",true)||name.contains("Salary",true)||name.contains("Wage",true)->Icons.Outlined.Payments
+    name.contains("House",true)||name.contains("Home",true)||name.contains("Clean",true)->Icons.Outlined.Home
+    else->Icons.Outlined.Category
+}
 fun walletIcon(type:WalletType)=when(type){WalletType.CASH->Icons.Outlined.Payments;WalletType.E_WALLET->Icons.Outlined.Smartphone;else->Icons.Outlined.AccountBalance}
 @Composable fun LedgerRow(tx:TransactionEntity,s:UiState,onClick:()->Unit) {
     val category=s.categories.find{it.id==tx.categoryId};val wallet=s.wallets.find{it.id==tx.sourceWalletId}

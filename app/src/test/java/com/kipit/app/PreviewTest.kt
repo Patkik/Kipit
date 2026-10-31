@@ -19,6 +19,7 @@ class PreviewTest {
     @Test fun expenseUsesRollingBudget(){assertEquals(90000L,preview(tx()))}
     @Test fun openingBalanceIncreasesRoom(){assertEquals(110000L,preview(tx(TxType.OPENING)))}
     @Test fun incomeIncreasesRoom(){assertEquals(110000L,preview(tx(TxType.INCOME)))}
+    @Test fun incomeWithCategoryIncreasesRoom(){assertEquals(110000L,preview(tx(TxType.INCOME).copy(categoryId=1)))}
     @Test fun transferPreservesPrincipal(){assertEquals(100000L,preview(tx(TxType.TRANSFER)))}
     @Test fun transferFeeReducesPool(){assertEquals(99500L,preview(tx(TxType.TRANSFER,fee=1500)))}
     @Test fun splitIncludesFullCashAdvanced(){assertEquals(83333L,preview(tx(amount=15000),35000))}
