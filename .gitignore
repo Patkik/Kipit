@@ -7,3 +7,5 @@ local.properties
 release.properties
 .DS_Store
 *.iml
+.agents/
+.claude/

@@ -201,7 +201,7 @@ import java.util.Locale
             }
         }
         "about"->DetailSheet("About & data",{editor=""}){
-            ActionRow("Kipit","Version ${com.kipit.app.BuildConfig.VERSION_NAME}",Icons.Outlined.AccountBalanceWallet)
+            ActionRow(androidx.compose.ui.res.stringResource(com.kipit.app.R.string.app_name),"Version ${com.kipit.app.BuildConfig.VERSION_NAME}",Icons.Outlined.AccountBalanceWallet)
             Text("Your records stay on this device. Uninstalling removes them. Device backup is disabled; export and restore are not available yet.")
             if(com.kipit.app.BuildConfig.DEMO_DATA)Text("This is the separate sample app. These records are sample history.")
         }
