@@ -33,6 +33,7 @@ import java.util.Locale
     val lifecycle=LocalLifecycleOwner.current
     val updateState by vm.updateState.collectAsState()
     val downloadState by vm.downloadState.collectAsState()
+    val aiApiKey by vm.aiApiKey.collectAsState()
     var revision by remember{mutableIntStateOf(0)}
     DisposableEffect(lifecycle){val observer=LifecycleEventObserver{_,event->if(event==Lifecycle.Event.ON_RESUME)revision++};lifecycle.lifecycle.addObserver(observer);onDispose{lifecycle.lifecycle.removeObserver(observer)}}
     val notifications=remember(revision){context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()}
@@ -60,6 +61,8 @@ import java.util.Locale
         item{SectionTitle("Preferences")}
         item{ActionRow("Budget meal cost",Centavos(s.config.mealAnchorCentavos).toPhpString(),Icons.Outlined.Restaurant,{open("meal")})}
         item{ActionRow("Savings goal",Centavos(s.config.savingsGoalCentavos).toPhpString(),Icons.Outlined.Flag,{open("goal")})}
+        item{SectionTitle("Intelligence")}
+        item{ActionRow("A.I & Smart Parser",if(aiApiKey.isNotBlank())"Gemini 2.5 Flash active" else "Offline smart mode active",Icons.Outlined.AutoAwesome,{open("ai")})}
         item{SectionTitle("On this device")}
         item{ActionRow("Payment capture",if(captureEnabled)"Enabled" else "Off",Icons.AutoMirrored.Outlined.ReceiptLong,{open("capture")})}
         item{ActionRow("Reminders",if(notifications)"Notifications allowed" else "Notifications off",Icons.Outlined.Notifications,{open("reminders")})}
@@ -199,6 +202,54 @@ import java.util.Locale
                     ActionButton("Update",Icons.Outlined.Refresh,{vm.checkForUpdates()},Modifier.fillMaxWidth(),primary=true)
                 }
             }
+        }
+        "ai"->DetailSheet("A.I Smart Parser",{editor=""}){
+            var inputKey by remember(aiApiKey){mutableStateOf(aiApiKey)}
+            var testStatus by remember{mutableStateOf("")}
+            var testing by remember{mutableStateOf(false)}
+
+            Text("Kipit uses AI to turn natural language into categorized expenses and incomes.")
+            Text(
+                if (aiApiKey.isNotBlank()) "Gemini 2.5 Flash is connected. High-accuracy conversational parsing is active."
+                else "Offline smart mode is active. To enable Gemini Flash, connect your free Google AI Studio API key below.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            OutlinedTextField(
+                value = inputKey,
+                onValueChange = { inputKey = it },
+                label = { Text("Gemini API Key") },
+                placeholder = { Text("Paste API key (AIzaSy...)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (testStatus.isNotBlank()) {
+                Text(testStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+
+            ActionButton("Save API Key", Icons.Outlined.Check, {
+                vm.saveAiApiKey(inputKey)
+                if (inputKey.isNotBlank()) {
+                    testStatus = "Saved! Testing connection with Gemini..."
+                    testing = true
+                    vm.parseTransactionWithAi("Coffee 120 cash", {
+                        testing = false
+                        testStatus = "Connected successfully to Gemini! Ready for smart parsing."
+                    }, { err ->
+                        testing = false
+                        testStatus = "Test failed: $err. Check your API key or network."
+                    })
+                } else {
+                    testStatus = "API Key cleared. Offline smart mode is active."
+                }
+            }, Modifier.fillMaxWidth(), primary = true, busy = testing)
+
+            ActionButton("Get free Gemini API Key", Icons.Outlined.OpenInNew, {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/apikey"))
+                context.startActivity(intent)
+            }, Modifier.fillMaxWidth())
         }
         "about"->DetailSheet("About & data",{editor=""}){
             ActionRow(androidx.compose.ui.res.stringResource(com.kipit.app.R.string.app_name),"Version ${com.kipit.app.BuildConfig.VERSION_NAME}",Icons.Outlined.AccountBalanceWallet)

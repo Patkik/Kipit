@@ -14,6 +14,8 @@ import com.kipit.app.data.local.entity.*
 import com.kipit.app.data.local.dao.*
 import com.kipit.app.data.repository.KipitRepositoryImpl
 import com.kipit.app.domain.usecase.*
+import com.kipit.app.service.AiPreferences
+import com.kipit.app.service.AiTransactionParser
 import com.kipit.app.service.AppUpdateChecker
 import com.kipit.app.service.AppUpdateDownloader
 import com.kipit.app.service.DownloadState
@@ -46,7 +48,8 @@ sealed interface UiIntent {
 
 @HiltViewModel
 class AppViewModel @Inject constructor(
-    val repository: KipitRepositoryImpl
+    val repository: KipitRepositoryImpl,
+    val aiPreferences: AiPreferences
 ) : ViewModel() {
     private val mutable = MutableStateFlow(UiState())
     val state = mutable.asStateFlow()
@@ -57,6 +60,9 @@ class AppViewModel @Inject constructor(
 
     private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
     val downloadState = _downloadState.asStateFlow()
+
+    val aiApiKey = MutableStateFlow(aiPreferences.getApiKey())
+    val isAiBusy = MutableStateFlow(false)
 
     private val dao = repository.dao
 
@@ -279,5 +285,39 @@ class AppViewModel @Inject constructor(
     suspend fun search(q: String): List<TransactionEntity> {
         val quote = 34.toChar().toString()
         return dao.search(quote + q.replace(quote, quote + quote) + quote)
+    }
+
+    fun saveAiApiKey(key: String) {
+        aiPreferences.setApiKey(key)
+        aiApiKey.value = key.trim()
+    }
+
+    fun parseTransactionWithAi(
+        prompt: String,
+        onResult: (AiParsedTransaction) -> Unit,
+        onError: (String) -> Unit = {}
+    ) {
+        if (prompt.isBlank()) return
+        viewModelScope.launch {
+            isAiBusy.value = true
+            try {
+                val wallets = state.value.wallets.map { it.name }
+                val categories = state.value.categories.map { it.name }
+                val key = aiPreferences.getApiKey()
+                val model = aiPreferences.getModel()
+                val parsed = AiTransactionParser.parse(
+                    prompt = prompt,
+                    availableWallets = wallets,
+                    availableCategories = categories,
+                    apiKey = key.ifBlank { null },
+                    model = model
+                )
+                onResult(parsed)
+            } catch (e: Exception) {
+                onError(e.message ?: "Could not parse transaction")
+            } finally {
+                isAiBusy.value = false
+            }
+        }
     }
 }

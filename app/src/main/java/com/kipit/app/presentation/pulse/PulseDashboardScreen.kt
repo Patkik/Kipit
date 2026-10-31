@@ -37,6 +37,7 @@ import java.time.format.DateTimeFormatter
             HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
         }
         item { MoneyActions(income,add,enabled=!s.busy) }
+        item { ActionRow("✨ A.I Smart Log","Describe transactions in natural language to auto-fill",Icons.Outlined.AutoAwesome,add) }
         if(s.transactions.isEmpty()&&s.wallets.all{it.balanceCentavos==0L})item {
             ActionRow("Set opening balances","Start with the money you already have.",Icons.Outlined.AccountBalanceWallet,opening)
         }

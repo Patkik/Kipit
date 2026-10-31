@@ -1,6 +1,8 @@
 package com.kipit.app.presentation.omnisheet
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
@@ -48,6 +50,10 @@ import java.time.*
     var noteOpen by rememberSaveable{mutableStateOf(capture!=null)}
     var calculator by rememberSaveable{mutableStateOf(false)}
     var picker by rememberSaveable{mutableStateOf("")}
+    var showAiPrompt by rememberSaveable{mutableStateOf(false)}
+    var aiPromptInput by rememberSaveable{mutableStateOf("")}
+    var aiError by rememberSaveable{mutableStateOf<String?>(null)}
+    val isAiBusy by vm.isAiBusy.collectAsState()
 
     LaunchedEffect(mode) {
         if (mode == "Income") {
@@ -120,6 +126,89 @@ import java.time.*
     val title=if(capture!=null)"Review payment" else when(mode){"Expense"->"Add expense";"Park"->"Planned purchase";"Opening balance"->"Opening balance";else->"Add ${mode.lowercase()}"}
     val saveLabel=if(capture!=null)"Confirm payment" else when(mode){"Expense"->"Save expense";"Park"->"Park for 7 days";"Transfer"->"Save transfer";"Split"->"Save split";"Income"->"Save income";else->"Save opening balance"}
     DetailSheet(title,{if(!s.busy)dismiss()},footer={ActionButton(saveLabel,Icons.Outlined.Check,{commit()},Modifier.fillMaxWidth(),primary=true,enabled=valid,busy=s.busy)}) {
+        if(capture==null) {
+            ActionRow(
+                "✨ A.I Smart Parse",
+                if(showAiPrompt)"Hide assistant" else "Type or paste e.g. \"Lunch 250 gcash split with Sam\"",
+                Icons.Outlined.AutoAwesome,
+                { showAiPrompt = !showAiPrompt }
+            )
+            if(showAiPrompt) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Describe your expense or income in natural words:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = aiPromptInput,
+                        onValueChange = { aiPromptInput = it; aiError = null },
+                        placeholder = { Text("e.g. Dinner 450 gcash split with Bob") },
+                        singleLine = false,
+                        maxLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if(aiError != null) {
+                        Text(aiError!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        ActionButton(
+                            "Auto-Fill with A.I",
+                            Icons.Outlined.AutoAwesome,
+                            {
+                                if(aiPromptInput.isNotBlank()) {
+                                    vm.parseTransactionWithAi(
+                                        prompt = aiPromptInput,
+                                        onResult = { parsed ->
+                                            if(parsed.amountCentavos > 0) {
+                                                expression = java.math.BigDecimal.valueOf(parsed.amountCentavos, 2).toPlainString()
+                                            }
+                                            mode = parsed.mode
+                                            if(parsed.categoryName.isNotBlank()) {
+                                                categoryText = parsed.categoryName
+                                                category = s.categories.find { it.name.trim().equals(parsed.categoryName.trim(), ignoreCase = true) }?.id ?: 0L
+                                            }
+                                            val matchedW = s.wallets.find { it.name.trim().equals(parsed.walletName.trim(), ignoreCase = true) }
+                                                ?: s.wallets.find { it.name.contains(parsed.walletName, ignoreCase = true) }
+                                            if(matchedW != null) {
+                                                wallet = matchedW.id
+                                            }
+                                            if(parsed.mode == "Transfer" && parsed.destinationWalletName != null) {
+                                                val matchedDest = s.wallets.find { it.name.contains(parsed.destinationWalletName, ignoreCase = true) }
+                                                if(matchedDest != null) destination = matchedDest.id
+                                            }
+                                            if(parsed.mode == "Split") {
+                                                split = (parsed.splitCount ?: 2).toString()
+                                                debtor = parsed.debtorName ?: ""
+                                            }
+                                            if(parsed.merchantOrNote.isNotBlank()) {
+                                                note = parsed.merchantOrNote
+                                                noteOpen = true
+                                            }
+                                            showAiPrompt = false
+                                            aiPromptInput = ""
+                                        },
+                                        onError = { err -> aiError = err }
+                                    )
+                                }
+                            },
+                            primary = true,
+                            busy = isAiBusy,
+                            enabled = aiPromptInput.isNotBlank() && !isAiBusy
+                        )
+                    }
+                }
+            }
+        }
         OutlinedTextField(expression,{expression=it},label={Text("Amount (PHP)")},keyboardOptions=KeyboardOptions(keyboardType=if(calculator)KeyboardType.Text else KeyboardType.Decimal),isError=result.isFailure,textStyle=MaterialTheme.typography.headlineMedium.copy(fontWeight=FontWeight.Medium),singleLine=true,modifier=Modifier.fillMaxWidth())
         ErrorNotice(s.error)
         if(result.isFailure)ErrorNotice("Check the amount or calculation.")
@@ -245,6 +334,7 @@ import java.time.*
             "tools"->{
                 ActionRow(if(noteOpen)"Hide note" else "Add note",null,Icons.Outlined.EditNote,{noteOpen=!noteOpen;picker=""})
                 ActionRow(if(calculator)"Hide calculator" else "Calculator",null,Icons.Outlined.Calculate,{calculator=!calculator;picker=""})
+                ActionRow("✨ A.I Smart Parse",null,Icons.Outlined.AutoAwesome,{showAiPrompt=true;picker=""})
                 if(capture==null){ActionRow("Repeat expense",null,Icons.Outlined.Replay,{picker="repeats"});ActionRow("Multiple expenses",null,Icons.AutoMirrored.Outlined.PlaylistAdd,{picker="batch"})}
             }
             "repeats"->{if(s.macros.isEmpty())EmptyState("No repeats yet","Frequent expenses appear after you record them a few times.",Icons.Outlined.Replay);s.macros.forEach{m->ActionRow(m.note.ifBlank{"Repeat expense"},Centavos(m.amountCentavos).toPhpString(),Icons.Outlined.Replay,{expression=java.math.BigDecimal.valueOf(m.amountCentavos,2).toPlainString();wallet=m.sourceWalletId;category=m.categoryId?:category;note=m.note;mode="Expense";picker=""})}}
