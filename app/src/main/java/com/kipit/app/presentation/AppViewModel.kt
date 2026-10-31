@@ -79,8 +79,22 @@ class AppViewModel @Inject constructor(
                     ).forEach {
                         dao.insertWallet(WalletEntity(name = it.first, type = it.second, balanceCentavos = 0))
                     }
-                    listOf("Food", "Transport", "Utilities", "Tech & Gaming", "Groceries", "Subscriptions").forEachIndexed { i, n ->
-                        dao.insertCategory(CategoryEntity(name = n, monthlyLimitCentavos = if (i == 2) 300000 else 150000, isDiscretionary = i != 2, isFixedBill = i == 2))
+                    listOf("Food", "Transport", "Utilities", "Tech & Gaming", "Groceries", "Subscriptions").forEach { n ->
+                        dao.insertCategory(CategoryEntity(name = n, monthlyLimitCentavos = 0L, isDiscretionary = true, isFixedBill = false))
+                    }
+                }
+            } else {
+                repository.db.withTransaction {
+                    val allTx = dao.transactions().first()
+                    val allWallets = dao.walletsSnapshot()
+                    if (allTx.isEmpty() && allWallets.all { it.balanceCentavos == 0L }) {
+                        dao.categories().first().forEach { c ->
+                            if (c.monthlyLimitCentavos == 300000L && c.isFixedBill) {
+                                dao.updateCategory(c.copy(monthlyLimitCentavos = 0L, isFixedBill = false, isDiscretionary = true))
+                            } else if (c.monthlyLimitCentavos == 150000L) {
+                                dao.updateCategory(c.copy(monthlyLimitCentavos = 0L))
+                            }
+                        }
                     }
                 }
             }

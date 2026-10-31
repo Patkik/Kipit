@@ -15,4 +15,13 @@ class MoneyTest {
  @Test fun monthEnd(){val wallets=listOf(WalletEntity(name="Cash",type=WalletType.CASH,balanceCentavos=10000));assertEquals(10000L,CalculateSafeToSpendUseCase()(wallets,emptyList(),emptyList(),UserConfigEntity(),LocalDate.of(2026,10,31)).value)}
  @Test fun lockedSavings(){val wallets=listOf(WalletEntity(name="Cash",type=WalletType.CASH,balanceCentavos=10000));assertEquals(6000L,CalculateSafeToSpendUseCase()(wallets,emptyList(),emptyList(),UserConfigEntity(lockedSavingsCentavos=4000),LocalDate.of(2026,10,31)).value)}
  @Test fun splitRemainder(){val e=MicroSyntaxLexer.parse("10 Food split:3 #trip",listOf(WalletEntity(id=1,name="Cash",type=WalletType.CASH,balanceCentavos=10000)),listOf(CategoryEntity(id=1,name="Food",monthlyLimitCentavos=10000))).getOrThrow().single();assertEquals(333L,e.personal.value);assertEquals(667L,e.owed.value);assertEquals("trip",e.tags)}
+ @Test fun zeroBalanceWithUnspentBillReturnsZero(){
+  val wallets=listOf(WalletEntity(name="Cash",type=WalletType.CASH,balanceCentavos=0))
+  val categories=listOf(CategoryEntity(name="Utilities",monthlyLimitCentavos=300000,isFixedBill=true))
+  assertEquals(0L,CalculateSafeToSpendUseCase()(wallets,categories,emptyList(),UserConfigEntity(),LocalDate.of(2026,11,1)).value)
+ }
+ @Test fun emptyWalletsAndTransactionsReturnZero(){
+  val wallets=listOf(WalletEntity(name="Cash",type=WalletType.CASH,balanceCentavos=0),WalletEntity(name="GCash",type=WalletType.E_WALLET,balanceCentavos=0))
+  assertEquals(0L,CalculateSafeToSpendUseCase()(wallets,emptyList(),emptyList(),UserConfigEntity(),LocalDate.of(2026,11,1)).value)
+ }
 }

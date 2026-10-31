@@ -12,10 +12,15 @@ class EvaluateKeypadImpactUseCase {
 class CalculateSafeToSpendUseCase {
  operator fun invoke(wallets:List<WalletEntity>,categories:List<CategoryEntity>,transactions:List<TransactionEntity>,config:UserConfigEntity,date:LocalDate=LocalDate.now()):Centavos {
   val liquid=wallets.filter{!it.isArchived && it.type!=WalletType.CREDIT}.fold(0L){a,w->Math.addExact(a,w.balanceCentavos)}
+  if(liquid<=0L) {
+   return if(liquid<0L) Centavos(liquid/(date.lengthOfMonth()-date.dayOfMonth+1)) else Centavos(0)
+  }
   val month=transactions.filter{Instant.ofEpochMilli(it.timestampEpochMs).atZone(ZoneId.systemDefault()).toLocalDate().let{d->d.year==date.year && d.month==date.month} && it.type==TxType.EXPENSE}
   val bills=categories.filter{it.isFixedBill}.sumMoney{c->Math.subtractExact(c.monthlyLimitCentavos,month.filter{it.categoryId==c.id}.sumMoney{Math.addExact(it.amountCentavos,it.feeCentavos)}).coerceAtLeast(0)}
+  val totalReserve=Math.addExact(bills,config.lockedSavingsCentavos)
+  val unreserved=Math.subtractExact(liquid,minOf(liquid,totalReserve))
   // Wallet balances already include the full split debit: do not subtract receivables again.
-  return Centavos(Math.subtractExact(Math.subtractExact(liquid,bills),config.lockedSavingsCentavos)/(date.lengthOfMonth()-date.dayOfMonth+1))
+  return Centavos(unreserved/(date.lengthOfMonth()-date.dayOfMonth+1))
  }
  fun recovery(overspent:Centavos,daysRemaining:Int)=overspent/daysRemaining.coerceIn(1,7).toLong()
 }
