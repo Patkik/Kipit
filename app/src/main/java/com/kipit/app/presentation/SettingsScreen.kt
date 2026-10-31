@@ -9,7 +9,6 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.*
@@ -98,13 +97,11 @@ import java.util.Locale
                     Surface(
                         color=MaterialTheme.colorScheme.surfaceVariant,
                         shape=MaterialTheme.shapes.small,
-                        modifier=Modifier.fillMaxWidth().heightIn(max=160.dp)
+                        modifier=Modifier.fillMaxWidth()
                     ){
-                        LazyColumn(modifier=Modifier.padding(12.dp)){
-                            item{
-                                val noteText = if(u.releaseNotes.isNotBlank()) u.releaseNotes else if(u.title.isNotBlank()) u.title else "New update available with performance enhancements and bug fixes."
-                                Text(noteText,style=MaterialTheme.typography.bodySmall)
-                            }
+                        Box(modifier=Modifier.padding(12.dp)){
+                            val noteText = if(u.releaseNotes.isNotBlank()) u.releaseNotes else if(u.title.isNotBlank()) u.title else "New update available with performance enhancements and bug fixes."
+                            Text(noteText,style=MaterialTheme.typography.bodySmall)
                         }
                     }
 

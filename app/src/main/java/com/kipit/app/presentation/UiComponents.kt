@@ -11,6 +11,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
@@ -99,13 +104,29 @@ object Space { val xs=4.dp; val sm=8.dp; val md=12.dp; val lg=16.dp; val section
 @Composable fun ErrorNotice(message:String?) { if(message!=null)Surface(modifier=Modifier.semantics{liveRegion=LiveRegionMode.Polite;error(message)},color=MaterialTheme.colorScheme.errorContainer,shape=RoundedCornerShape(12.dp)) { Row(Modifier.padding(12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)){Icon(Icons.Outlined.ErrorOutline,null);Text(message,style=MaterialTheme.typography.bodyMedium)} } }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun DetailSheet(title:String,onDismiss:()->Unit,footer:(@Composable ()->Unit)?=null,content:@Composable ColumnScope.()->Unit) {
+    val scrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                return if (available.y < 0f) Offset(0f, available.y) else Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                return Velocity(0f, available.y)
+            }
+        }
+    }
+    val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.9f).dp
     ModalBottomSheet(onDismissRequest=onDismiss,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),containerColor=MaterialTheme.colorScheme.surface) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight(.9f).imePadding()) {
+        Column(Modifier.fillMaxWidth().heightIn(max=maxHeight).imePadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal=20.dp),verticalAlignment=Alignment.CenterVertically) {
                 Text(title,Modifier.weight(1f).semantics{heading()},style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold)
                 IconButton(onDismiss){Icon(Icons.Outlined.Close,"Close $title")}
             }
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp),content=content)
+            Column(Modifier.weight(1f,fill=false).nestedScroll(scrollConnection).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp),content=content)
             if(footer!=null)Surface(color=MaterialTheme.colorScheme.surface){Box(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp)){footer()}}
         }
     }
